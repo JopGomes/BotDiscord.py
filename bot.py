@@ -1,10 +1,13 @@
 import discord
 import requests
+from requests import get
 import json
 import random
 from discord.ext import commands,tasks
+from discord import Spotify
 import asyncio
 import youtube_dl
+from youtube_dl import YoutubeDL
 
 
 
@@ -54,13 +57,7 @@ youtube_dl.utils.bug_reports_message = lambda: ''
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
-    'restrictfilenames': True,
     'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': True,
-    'no_warnings': True,
     'default_search': 'auto',
     'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
 }
@@ -101,15 +98,15 @@ async def join(ctx):
 
 @bot.command(name='leave', help='To make the bot leave the voice channel')
 async def leave(ctx):
-    voice_client = ctx.message.guild.voice_client
+    voice_client = ctx.message.guild.voice_client 
     if voice_client.is_connected():
         await voice_client.disconnect()
     else:
         await ctx.send("The bot is not connected to a voice channel.")
 
-#-- Para comecar a tocar musicas
-@bot.command(name='play_song', help='To play song')
-async def play(ctx,url):
+#-- Para comecar a fazer download e tocar musicas
+@bot.command(name='download', help='To Download and play a song from yt')
+async def download(ctx,url):
     try :
         server = ctx.message.guild
         voice_channel = server.voice_client
@@ -119,7 +116,51 @@ async def play(ctx,url):
         await ctx.send('**Now playing:** {}'.format(filename))
     except:
         await ctx.send("The bot is not connected to a voice channel.")
-        
+# To play a song
+players={}
+async def  SearchSong(arg):
+    YDL_OPTIONS = {
+            'format': 'bestaudio/best',
+            'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+            'restrictfilenames': True,
+            'noplaylist': True,
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'logtostderr': False,
+            'quiet': True,
+            'no_warnings': True,
+            'default_search': 'auto',
+            'source_address': '0.0.0.0',  # bind to ipv4 since ipv6 addresses cause issues sometimes
+        }
+    with YoutubeDL(YDL_OPTIONS) as ydl:
+        video =await ydl.extract_info(f"ytsearch:{arg}", download=False)['entries'][0]
+        # try:
+        #     get(arg) 
+        # except:
+        #     video =await ydl.extract_info(f"ytsearch:{arg}", download=False)['entries'][0]
+        # else:
+        #     video = await ydl.extract_info(arg, download=False)
+        #     print('Estamos logados como {0.user}'.format(bot))
+        return video
+@bot.command(name='play',help='This command play the song')
+async def play(ctx, arg):
+    try:
+        async with ctx.typing():
+            video = await SearchSong(arg)
+            # server = ctx.message.server
+            # voice_client= bot.voice_client_in(server)
+            # player = await voice_client.create_ytdl_player(video.cleared_data['video_url'])
+            # players[server.id]=player
+            # player.start()
+            url = video.cleared_data['video_url']
+            # player= await YTDLSource.from_url(url, loop=bot.loop)
+            # server = ctx.message.guild
+            # voice_channel = server.voice_client
+            # voice_channel.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
+        await ctx.send('**Now playing:** {}'.format(url))
+    except:
+        await ctx.send("The bot is not connected to a voice channel.")
+
 @bot.command(name='pause', help='This command pauses the song')
 async def pause(ctx):
     voice_client = ctx.message.guild.voice_client
@@ -142,6 +183,14 @@ async def stop(ctx):
         await voice_client.stop()
     else:
         await ctx.send("The bot is not playing anything at the moment.")
+
+#--- Musica tocando fala o q foi tocado
+@bot.command()
+async def spotify(ctx, user: discord.Member=None):
+    user = user or ctx.author
+    for activity in user.activities:
+        if isinstance(activity, Spotify):
+            await ctx.send(f"{user} is listening to {activity.title} by {activity.artist}")
 
 #-- Informações do server
 @bot.command(help = "Prints details of Server")
@@ -172,8 +221,7 @@ async def where_am_i(ctx):
 
 @bot.command()
 async def tell_me_about_yourself(ctx):
-    text = "My name is {0.user}!\n I was built by Jop. At present I have limited features(find out more by typing !help)\n :)" 
-    #.format(client)
+    text = "My name is {0.user}!\n I was built by Jop. At present I have limited features(find out more by typing !help)\n :)" .format(bot)
     await ctx.send(text)
 
 DISCORD_TOKEN = 'OTU1MDU4NTQzODIyNzcwMTc2.YjcJlA.X2bAcIMeSdygKVfyKe9Qu2ToghY'
